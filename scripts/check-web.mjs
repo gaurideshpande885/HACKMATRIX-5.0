@@ -23,8 +23,8 @@ for (const value of forbidden) {
   if (html.includes(value)) throw new Error(`Forbidden client-side AI credential path remains: ${value}`);
 }
 
-for (const required of ['buildCopilotPayload', '/api/v1/copilot', 'formatCopilotResponse', 'Managed Copilot service']) {
-  if (!html.includes(required)) throw new Error(`Required managed-Copilot integration is missing: ${required}`);
+for (const required of ['FinLlm', 'localAiAnswer', 'llmSafe', 'showLocalAi', "copilotApiBase=''"]) {
+  if (!html.includes(required)) throw new Error(`Required on-device AI integration is missing: ${required}`);
 }
 
 for (const required of ['Stable glass system', 'scheduleDrawCharts', '#sheetOverlay:not(.hidden)', 'prefers-reduced-motion:reduce', 'sheetEnter']) {
@@ -35,4 +35,4 @@ for (const forbiddenUiPattern of ['content-visibility:auto', 'contain-intrinsic-
   if (html.includes(forbiddenUiPattern)) throw new Error(`Unstable WebView UI pattern was reintroduced: ${forbiddenUiPattern}`);
 }
 
-console.log('Validated embedded app syntax and managed-Copilot boundary.');
+console.log('Validated embedded app syntax and on-device AI boundary.');

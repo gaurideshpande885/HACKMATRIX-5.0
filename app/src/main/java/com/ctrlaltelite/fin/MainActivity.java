@@ -27,6 +27,7 @@ public class MainActivity extends Activity {
     private WebView webView;
     private ValueCallback<Uri[]> fileCallback;
     private FinDatabaseBridge databaseBridge;
+    private LocalLlm localLlm;
     private final ExecutorService pdfExecutor = Executors.newSingleThreadExecutor();
     private Uri pendingPdfUri;
     private static final int FILE_REQUEST = 9021;
@@ -65,6 +66,8 @@ public class MainActivity extends Activity {
         databaseBridge = new FinDatabaseBridge(this);
         webView.addJavascriptInterface(databaseBridge, "FinNative");
         webView.addJavascriptInterface(this, "FinPdf");
+        localLlm = new LocalLlm(this, webView);
+        webView.addJavascriptInterface(localLlm, "FinLlm");
         webView.removeJavascriptInterface("searchBoxJavaBridge_");
         webView.removeJavascriptInterface("accessibility");
         webView.removeJavascriptInterface("accessibilityTraversal");
@@ -107,6 +110,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (localLlm != null && localLlm.handleActivityResult(requestCode, resultCode, data)) return;
         if (requestCode == FILE_REQUEST && fileCallback != null) {
             if (resultCode == RESULT_OK && data != null && data.getData() != null) {
                 Uri uri = data.getData();
@@ -187,10 +191,12 @@ public class MainActivity extends Activity {
         if (webView != null) {
             webView.removeJavascriptInterface("FinNative");
             webView.removeJavascriptInterface("FinPdf");
+            webView.removeJavascriptInterface("FinLlm");
             webView.destroy();
         }
         pdfExecutor.shutdownNow();
         if (databaseBridge != null) databaseBridge.close();
+        if (localLlm != null) localLlm.close();
         super.onDestroy();
     }
 }

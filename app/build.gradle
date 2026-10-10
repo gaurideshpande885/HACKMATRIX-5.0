@@ -2,7 +2,8 @@ apply plugin: 'com.android.application'
 
 import groovy.json.JsonSlurper
 
-def finApiBaseUrl = (project.findProperty('FIN_API_BASE_URL') ?: System.getenv('FIN_API_BASE_URL') ?: '').toString()
+// FIN runs fully on the phone. No cloud API address is ever built into the app.
+def finApiBaseUrl = ''
 def escapedFinApiBaseUrl = finApiBaseUrl.replace('\\', '\\\\').replace('"', '\\"')
 def releaseMetadata = new JsonSlurper().parse(rootProject.file('release.json'))
 def releaseStoreFile = System.getenv('FIN_RELEASE_STORE_FILE')
@@ -21,6 +22,9 @@ android {
         targetSdk 35
         versionCode releaseMetadata.versionCode as int
         versionName releaseMetadata.version.toString()
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
         buildConfigField 'String', 'FIN_API_BASE_URL', '"' + escapedFinApiBaseUrl + '"'
     }
 
@@ -54,4 +58,5 @@ android {
 
 dependencies {
     implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
+    implementation 'com.google.mediapipe:tasks-genai:0.10.27'
 }
