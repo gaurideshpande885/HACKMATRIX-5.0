@@ -15,6 +15,20 @@ test('rejects raw or malformed request fields', () => {
   assert.equal(parsed.success, false);
 });
 
+test('accepts a withheld cash-gap probability with validation evidence', () => {
+  const payload = validRequest();
+  Object.assign(payload.financialContext.prediction, {
+    cashGapProbability: null,
+    validationStatus: 'unavailable',
+    completedBacktests: 0,
+    day30Mae: null,
+    intervalCoverage: null,
+    brierScore: null,
+    calibrationStatus: 'unavailable',
+  });
+  assert.equal(copilotRequestSchema.safeParse(payload).success, true);
+});
+
 test('requires separate facts, predictions, recommendations, and impact', () => {
   assert.equal(copilotResponseSchema.safeParse(validAnswer).success, true);
   const missingImpact = structuredClone(validAnswer);

@@ -78,6 +78,32 @@ FIN runs 500 seeded Monte Carlo simulations over 30 days. Each path starts at th
 
 Using a deterministic seed makes the same input reproducible during a demo. The forecast is not a guarantee: missing transactions, changing income, unusual expenses, and short history can materially change the outcome.
 
+## Forecast reliability and held-out validation
+
+Analysis model 2.1 uses rolling-origin backtesting rather than a random train/test split. At each eligible historical cutoff, FIN gives the model only transactions posted on or before that date, reconstructs the balance at the cutoff from the current balance and subsequent ledger entries, forecasts the next 30 days, and compares the result with the held-out transactions. Recurring detection, trends, averages, and simulation inputs are recalculated from the training window so future records cannot leak into the prediction.
+
+The reliability report contains:
+
+- P50 mean absolute balance error at days 7, 14, and 30;
+- empirical coverage and mean width of the P10-P90 interval;
+- Brier score for the cash-gap event;
+- first-gap-day error when both predicted and actual gaps exist;
+- probability calibration bands; and
+- the same balance errors for a naive average-daily-net-cash-flow baseline.
+
+Historical balances are reconstructed and therefore depend on the imported ledger being complete. A backtest is evidence about past performance on the user's available data, not a guarantee of future accuracy.
+
+### Minimum-data policy
+
+| Available evidence | Forecast status |
+| --- | --- |
+| Under 30 observed days, fewer than 10 valid transactions, or no income observation | Unavailable: scenario path only; cash-gap probability is withheld |
+| 30-89 days | Provisional scenario; cash-gap probability remains withheld |
+| 90-179 days | Limited validation |
+| 180+ days, recent data, and at least three completed held-out windows | Historically validated |
+
+Recency, missing monthly periods, income observations, and recurring-cycle coverage are also reported as limitations. Data quality, minimum-data sufficiency, forecast interval width, calibration, and held-out accuracy remain separate concepts. The older stability percentage is retained internally as an input-stability heuristic and is not presented as validated accuracy.
+
 ## Data quality and persistence
 
 Analysis model 2.0 normalizes income, spending, debt service, and category totals over the actual observed window, bounded to 30-90 days. Its quality score considers record volume, history span, category coverage, recency, duplicates, and uncategorized share. Forecast confidence combines model stability with this measured data quality.
@@ -87,6 +113,14 @@ On Android, normalized transactions and user-entered history are authoritative i
 ## Recommendation context
 
 Ask FIN uses calculated metrics together with the user's goal, monthly target, desired emergency-fund months, recommendation style, and time horizon. The local engine supports affordability checks, emergency-fund plans, debt-payoff estimates, and category-specific spending reductions. Optional AI receives only a summarized context.
+
+## Constrained six-month action plans
+
+The action planner uses declared monthly income, observed essential expenses, minimum debt obligations, discretionary spending, total debt, a monthly savings goal, current cash, and a user-declared minimum cash reserve. It compares balanced, reserve-first, and debt-first sequences for at least six monthly periods. Protected essential expenses and minimum debt payments are applied before discretionary, saving, or optional debt actions.
+
+Each sequence is evaluated across 500 deterministic-seed paths using observed income and essential-expense variability. FIN reports reserve-shortfall risk and P10-P90 closing cash for every period. Income-reduction and essential-expense changes trigger a complete replan. When goals conflict, the plan lists the period and amount of each shortfall plus explicit relaxation proposals.
+
+Positive imported transactions count as forecast income only when categorized as `Income`. Peer receipts from payment-activity statements use `Transfers` and are excluded until the user verifies and recategorizes them.
 
 ## Recommendation impact and change tracking
 

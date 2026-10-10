@@ -1,6 +1,6 @@
 # Financial data vault
 
-FIN 1.8.0 keeps the authoritative financial dataset in Android's app-private SQLite storage. Browser preview retains a local-storage fallback, while the installed APK uses schema version 2 with an additive learning-state migration.
+FIN keeps the authoritative financial dataset in Android's app-private SQLite storage. Browser preview retains a local-storage fallback, while the installed APK uses schema version 3 with additive learning-state and forecast-validation migrations.
 
 ## Schema
 
@@ -9,7 +9,7 @@ FIN 1.8.0 keeps the authoritative financial dataset in Android's app-private SQL
 | `transactions` | Normalized income and expense ledger | stable ID, posting date, signed amount, category, type, source, timestamps |
 | `financial_profile` | Current consolidated balance snapshot | cash, savings, investments, total debt, emergency fund, credit values |
 | `financial_history` | Monthly net-worth series | unique `YYYY-MM` period, label, assets, debt |
-| `analysis_runs` | Reproducible model audit trail | SHA-256 input hash, model output JSON, health score, debt pressure, gap risk, confidence |
+| `analysis_runs` | Reproducible model audit trail | SHA-256 input hash, model output JSON, health score, debt pressure, nullable/withheld gap-risk sentinel, validation status, backtest count, day-30 MAE, interval coverage, Brier score, calibration status |
 | `feedback_events` | Private adaptive-ranking audit trail | decision/action IDs, event, bounded reward, propensity, context, policy version |
 | `policy_state` | Current local LinUCB state | version, interaction count, matrices and reward vectors, update time |
 
@@ -21,7 +21,7 @@ Indexes support date-ordered transaction reads, category evidence lookups, and n
 2. If the database is empty, existing v1.5 local data is normalized and migrated; otherwise the bundled synthetic dataset is seeded.
 3. CSV imports replace the ledger atomically after validation. Manual updates use targeted upserts.
 4. Profile saves replace the current profile and its 12-month history within one transaction.
-5. A recalculation stores a new analysis only when its input fingerprint differs from the latest run.
+5. A recalculation stores a new analysis only when its input fingerprint differs from the latest run. Validation evidence is stored both in indexed columns and in the backward-compatible result JSON.
 6. The newest 100 analysis runs are retained.
 7. The newest 2,000 learning events are retained; policy updates and their triggering feedback are written transactionally.
 

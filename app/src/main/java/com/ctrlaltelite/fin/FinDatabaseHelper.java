@@ -18,7 +18,7 @@ import java.util.Set;
 
 final class FinDatabaseHelper extends SQLiteOpenHelper {
     static final String DATABASE_NAME = "fin_health.db";
-    static final int DATABASE_VERSION = 2;
+    static final int DATABASE_VERSION = 3;
     private static final int MAX_ANALYSIS_RUNS = 100;
     private static final int MAX_FEEDBACK_EVENTS = 2000;
     private static final int MAX_TRANSACTIONS = 10000;
@@ -88,6 +88,12 @@ final class FinDatabaseHelper extends SQLiteOpenHelper {
                 "debt_pressure REAL NOT NULL," +
                 "cash_gap_probability REAL NOT NULL," +
                 "confidence REAL NOT NULL," +
+                "validation_status TEXT NOT NULL DEFAULT 'unavailable'," +
+                "backtest_count INTEGER NOT NULL DEFAULT 0," +
+                "day30_mae REAL," +
+                "interval_coverage REAL," +
+                "brier_score REAL," +
+                "calibration_status TEXT NOT NULL DEFAULT 'unavailable'," +
                 "result_json TEXT NOT NULL)");
         db.execSQL("CREATE INDEX idx_analysis_created_at ON analysis_runs(created_at DESC)");
         createLearningTables(db);
@@ -96,6 +102,14 @@ final class FinDatabaseHelper extends SQLiteOpenHelper {
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         if (oldVersion < 2) createLearningTables(db);
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE analysis_runs ADD COLUMN validation_status TEXT NOT NULL DEFAULT 'unavailable'");
+            db.execSQL("ALTER TABLE analysis_runs ADD COLUMN backtest_count INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("ALTER TABLE analysis_runs ADD COLUMN day30_mae REAL");
+            db.execSQL("ALTER TABLE analysis_runs ADD COLUMN interval_coverage REAL");
+            db.execSQL("ALTER TABLE analysis_runs ADD COLUMN brier_score REAL");
+            db.execSQL("ALTER TABLE analysis_runs ADD COLUMN calibration_status TEXT NOT NULL DEFAULT 'unavailable'");
+        }
     }
 
     private void createLearningTables(SQLiteDatabase db) {
@@ -304,12 +318,32 @@ final class FinDatabaseHelper extends SQLiteOpenHelper {
         values.put("health_score", analysis.optInt("healthScore", 0));
         values.put("net_worth", analysis.optDouble("netWorth", 0));
         values.put("debt_pressure", analysis.optDouble("debtPressure", 0));
-        values.put("cash_gap_probability", analysis.optDouble("cashGapProbability", 0));
+        values.put("cash_gap_probability", analysis.isNull("cashGapProbability") ? -1 : analysis.optDouble("cashGapProbability", -1));
         values.put("confidence", analysis.optDouble("confidence", 0));
+        JSONObject validation = analysis.optJSONObject("validation");
+        JSONObject accuracy = validation == null ? null : validation.optJSONObject("accuracy");
+        JSONObject horizons = accuracy == null ? null : accuracy.optJSONObject("horizons");
+        JSONObject day30 = horizons == null ? null : horizons.optJSONObject("30");
+        values.put("validation_status", clean(validation == null ? "unavailable" : validation.optString("status", "unavailable"), 32));
+        values.put("backtest_count", validation == null ? 0 : validation.optInt("completedBacktests", 0));
+        putFiniteOrNull(values, "day30_mae", day30, "p50Mae");
+        putFiniteOrNull(values, "interval_coverage", day30, "intervalCoverage");
+        putFiniteOrNull(values, "brier_score", accuracy, "brierScore");
+        values.put("calibration_status", clean(validation == null ? "unavailable" : validation.optString("calibrationStatus", "unavailable"), 32));
         values.put("result_json", canonical);
         db.insertOrThrow("analysis_runs", null, values);
         db.execSQL("DELETE FROM analysis_runs WHERE id NOT IN (SELECT id FROM analysis_runs ORDER BY id DESC LIMIT " + MAX_ANALYSIS_RUNS + ")");
         return readStatus(db);
+    }
+
+    private void putFiniteOrNull(ContentValues values, String column, JSONObject source, String key) {
+        if (source == null || source.isNull(key)) {
+            values.putNull(column);
+            return;
+        }
+        double value = source.optDouble(key, Double.NaN);
+        if (Double.isFinite(value)) values.put(column, value);
+        else values.putNull(column);
     }
 
     private JSONArray readTransactions(SQLiteDatabase db) throws JSONException {

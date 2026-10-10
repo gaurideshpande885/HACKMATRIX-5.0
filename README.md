@@ -6,7 +6,7 @@
 
 <p align="center">
   <img alt="Android 7+" src="https://img.shields.io/badge/Android-7.0%2B-3DDC84?logo=android&logoColor=white">
-  <img alt="Version 1.8.0" src="https://img.shields.io/badge/version-1.8.0-6D5DFC">
+  <img alt="Version 1.10.5" src="https://img.shields.io/badge/version-1.10.5-6D5DFC">
   <img alt="Hackathon prototype" src="https://img.shields.io/badge/status-hackathon%20prototype-F4B942">
   <img alt="Local first" src="https://img.shields.io/badge/data-local--first-1F9D8A">
 </p>
@@ -47,7 +47,7 @@ FIN turns consented transaction and financial-history data into a consolidated h
 | --- | --- |
 | Consolidated financial-health view | Combines transactions, current cash, balances, debt, credit utilization, savings, income, and monthly history from a versioned SQLite data vault. |
 | Spending and obligation analysis | Normalizes the actual observed window, detects category trends and cadence-qualified commitments, and calculates composite debt pressure and safe-to-spend capacity. |
-| Future cash-flow gaps | Runs 500 reproducible Monte Carlo paths and reports median, stress (P10), upside (P90), and gap probability. |
+| Future cash-flow gaps | Runs 500 reproducible Monte Carlo paths, reports P10/P50/P90 balances, withholds unsupported probabilities, and evaluates eligible forecasts on held-out history. |
 | Conversational financial guidance | Answers locally or through a managed Copilot API whose schema requires facts, predictions, recommendations, expected impact, confidence, and change reasoning. |
 | Login and analysis system | Includes passwordless demo OTP login, local sessions, CSV validation, a seven-stage analysis workspace, evidence records, and an audit trail. |
 | Expected action impact | Quantifies each recommendation with a timeframe, before/after values, confidence, assumptions, and missing information. |
@@ -66,6 +66,10 @@ FIN turns consented transaction and financial-history data into a consolidated h
 - Spending-pattern analysis using ordinary least squares and exponentially weighted averages
 - Recurring-obligation detection using median cadence and consistency confidence
 - 30-day probabilistic balance forecast with uncertainty bands
+- Rolling-origin historical backtests with day-7/day-14/day-30 error, interval coverage, Brier score, calibration bands, and a naive baseline comparison
+- Explicit unavailable, provisional, limited, and historically validated forecast states
+- Six-month constrained action planning across reserve-first, balanced, and debt-first sequences
+- Period-level balances, P10-P90 outcomes, reserve-shortfall risk, automatic replanning, and explicit infeasibility relaxations
 - Personalized affordability, emergency-fund, debt-payoff, and spending-reduction recommendations
 - Quantified recommendation impact across monthly and six-month horizons
 - Separate observed-fact, model-prediction, and recommendation layers
@@ -88,9 +92,17 @@ FIN uses transparent statistical methods rather than presenting a black-box scor
 3. Recurring payments require at least three matching events and are scored from interval and amount consistency.
 4. Debt pressure combines debt-service ratio (60%), total-debt leverage (25%), and revolving-credit utilization (15%).
 5. The next 30 days are simulated across 500 deterministic-seed Monte Carlo paths.
-6. Every major result includes its method, assumptions, confidence, source records, and limitations.
+6. Historical cutoff windows measure forecast error, interval coverage, cash-gap calibration, and performance against a naive baseline without future-data leakage.
+7. Minimum-data rules withhold the cash-gap probability when the available history cannot support it.
+8. Every major result includes its method, assumptions, data sufficiency, validation status, source records, and limitations.
 
 See [Data model and analytics](docs/DATA_MODEL.md) for definitions and formulas.
+
+See [Planning and forecast evaluation](docs/PLANNING_EVALUATION.md) for constrained-plan demonstrations, baseline comparisons, and chronological train-validation-test evidence.
+
+See [FIN 1.10.0 release notes](docs/RELEASE_1.10.0.md) for the release identity, verification gate, and signed deployment configuration.
+
+Run `npm run version:bump -- <next-version>` for each new release. The command updates the shared release metadata, package versions, visible browser fallback, README badge, and Android build number together; `npm run check` rejects any drift before packaging.
 
 ## Architecture
 
@@ -118,7 +130,7 @@ The APK is a compact native Android shell around a local WebView application. An
 2. Install it on Android 7.0 or newer. Android may ask you to allow installs from your file manager.
 3. Enter any valid email address or 10-15 digit mobile number.
 4. Use demo OTP `246810`.
-5. Choose **Explore demo data** for the fastest guided experience.
+5. Choose **Explore the prototype** and open the prominent **Plan the next six months** card on the dashboard.
 
 Full presentation steps are in the [demo guide](docs/DEMO_GUIDE.md).
 
@@ -149,12 +161,16 @@ npm test
 gradle assembleDebug -PFIN_API_BASE_URL=https://your-fin-api.vercel.app
 ```
 
-The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. GitHub Actions also builds a downloadable debug artifact for every change to `main` and every pull request.
+The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. GitHub Actions validates the API and embedded client before building a downloadable APK for every change to `main` and every pull request.
+
+For a production-signed release, configure the protected `production` GitHub environment with `FIN_ANDROID_KEYSTORE_BASE64`, `FIN_RELEASE_STORE_PASSWORD`, `FIN_RELEASE_KEY_ALIAS`, and `FIN_RELEASE_KEY_PASSWORD`, plus the non-secret `FIN_API_BASE_URL` variable. Running the **Android release** workflow produces both a signed APK and Play Store AAB only after all checks and tests pass.
 
 ## Repository map
 
 ```text
 app/src/main/assets/index.html                 UI and financial analytics
+app/src/main/assets/forecast-reliability.js    Minimum-data policy, rolling backtests, calibration, and error metrics
+app/src/main/assets/financial-action-planner.js Six-period constrained plans, scenarios, trade-offs, and shortfall simulation
 app/src/main/java/com/ctrlaltelite/fin/       Android host, SQLite layer, JS bridge, and CSV picker
 api/ and lib/                                 Versioned Copilot API, contracts, retrieval, and AI orchestration
 test/ and evals/                              API tests and synthetic behavior-evaluation cases

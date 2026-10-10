@@ -1,7 +1,15 @@
 apply plugin: 'com.android.application'
 
+import groovy.json.JsonSlurper
+
 def finApiBaseUrl = (project.findProperty('FIN_API_BASE_URL') ?: System.getenv('FIN_API_BASE_URL') ?: '').toString()
 def escapedFinApiBaseUrl = finApiBaseUrl.replace('\\', '\\\\').replace('"', '\\"')
+def releaseMetadata = new JsonSlurper().parse(rootProject.file('release.json'))
+def releaseStoreFile = System.getenv('FIN_RELEASE_STORE_FILE')
+def releaseStorePassword = System.getenv('FIN_RELEASE_STORE_PASSWORD')
+def releaseKeyAlias = System.getenv('FIN_RELEASE_KEY_ALIAS')
+def releaseKeyPassword = System.getenv('FIN_RELEASE_KEY_PASSWORD')
+def hasReleaseSigning = releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
 
 android {
     namespace 'com.ctrlaltelite.fin'
@@ -11,14 +19,26 @@ android {
         applicationId 'com.ctrlaltelite.fin'
         minSdk 24
         targetSdk 35
-        versionCode 9
-        versionName '1.8.0'
+        versionCode releaseMetadata.versionCode as int
+        versionName releaseMetadata.version.toString()
         buildConfigField 'String', 'FIN_API_BASE_URL', '"' + escapedFinApiBaseUrl + '"'
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
+            if (hasReleaseSigning) signingConfig signingConfigs.release
         }
     }
 
@@ -30,4 +50,8 @@ android {
     buildFeatures {
         buildConfig true
     }
+}
+
+dependencies {
+    implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
 }

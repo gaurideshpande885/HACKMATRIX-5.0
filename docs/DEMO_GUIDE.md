@@ -21,11 +21,17 @@ Open **Health** and highlight:
 
 Open any evidence affordance to show the method, inputs, confidence, assumptions, and limitations behind the result.
 
-## 4. Explain predictive insights
+## 4. Compare constrained six-month plans
+
+From the dashboard, open **Plan the next six months**. Compare the balanced, reserve-first, and debt-first sequences and show each month's opening cash, income, essential expenses, debt obligations, discretionary spending, savings, extra debt payment, closing cash, and P10-P90 range.
+
+Switch through **Stable income**, **Income -30%**, **Essential shock**, and **Infeasible target**. Point out the reserve-shortfall risk, automatic replanning, explicit constraint conflict, proposed relaxation, and the case where uncertainty changes the preferred plan.
+
+## 5. Explain predictive insights
 
 Open **Predict**. Point out detected recurring obligations, spending direction, 30-day P10/P50/P90 balance paths, and cash-gap probability. Emphasize that the engine uses transparent statistical methods and 500 reproducible simulations.
 
-## 5. Ask a personal question
+## 6. Ask a personal question
 
 Open **Ask FIN** and try:
 
@@ -41,11 +47,11 @@ How can I build a three-month emergency fund?
 
 The offline engine uses the current financial model and preferences. A deployment build can use the managed Copilot API to demonstrate a structured response that separately labels observed facts, model predictions, recommendations, expected impact, confidence, and what changed. Open **More > Copilot service** to check API health.
 
-## 6. Turn insight into action
+## 7. Turn insight into action
 
 Open the action center and compare the expected monthly or six-month impact, confidence, timeframe, and limitations for every recommendation. Save a recommendation and mark it accepted or complete.
 
-## 7. Demonstrate adaptation
+## 8. Demonstrate adaptation
 
 Open **Data > Add update** and add an example income, expense, debt balance, or savings balance. FIN reruns the model and displays the before/after health score, cash-gap risk, safe-to-spend amount, debt, and leading recommendation. A CSV import, category correction, or full history update triggers the same comparison.
 

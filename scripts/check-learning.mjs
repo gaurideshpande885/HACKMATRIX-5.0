@@ -14,7 +14,7 @@ const localStorage = {
 const deterministicMath = Object.create(Math);
 deterministicMath.random = () => 0.99;
 const source = `const INR=${match[1]}`
-  .replace(/window\.addEventListener\('resize',[\s\S]*?startStartup\(\);\s*$/, '')
+  .replace(/if\(typeof window\.addEventListener[\s\S]*$/, '')
   + `\n;globalThis.__learningTest={run(actions,m){learningPolicy=defaultLearningPolicy();learningDecisionCache=null;model=m;return rankRecommendations(actions,m)},display(){ensureDecisionDisplayed()},feedback(action,status){recordRecommendationFeedback(action,status)},policy(){return learningPolicy},decision(){return lastRecommendationDecision}};`;
 
 const context = vm.createContext({

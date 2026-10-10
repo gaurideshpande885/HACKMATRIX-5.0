@@ -29,6 +29,7 @@ final class FinDatabaseBridge {
             config.put("apiBaseUrl", BuildConfig.FIN_API_BASE_URL);
             config.put("apiVersion", "1.0");
             config.put("appVersion", BuildConfig.VERSION_NAME);
+            config.put("appVersionCode", BuildConfig.VERSION_CODE);
             return success(config).toString();
         } catch (Exception exception) {
             return failure(exception).toString();
