@@ -21,9 +21,12 @@ function load(txs) {
     pick('function payeeName('),
     pick('function tidyName('),
     pick('function transactionPayload('),
+    pick('function payeeStats('),
     pick('function topMerchantAnswer('),
     pick('function payeeCategoryPayload('),
     pick('function payeeBreakdown('),
+    pick('function cleanLlm('),
+    pick('function llmSafe('),
     pick('function topCategoryAnswer('),
   ].join('\n'), context);
   return context;
@@ -98,9 +101,8 @@ test('payees are grouped across UPI formats and ranked by total', () => {
 test('"what am I spending the most in" answers with the payee name', () => {
   const { topMerchantAnswer } = load(vadapav);
   const answer = topMerchantAnswer('What am I spending the most in');
-  assert.match(answer, /^You spend the most at Zomato: ₹300/);
-  const shop = load(vadapav.filter(row => row.category !== 'Dining'));
-  assert.match(shop.topMerchantAnswer('what am i spending the most in'), /^You spend the most at Renuka: ₹120 across 3 payments/);
+  assert.match(answer, /^You spend the most at Renuka: ₹120 over 3 visits/);
+  assert.match(answer, /left out one-time or rare payments, such as Zomato \(₹300\)/);
 });
 
 test('"where do I spend the least" answers with the smallest payee, not a category', () => {
@@ -122,10 +124,53 @@ test('categories are built from payee names, never "Other"', () => {
 test('Home and Insights breakdown ranks payees, not fixed categories', () => {
   const ctx = load(vadapav);
   const { list } = plain(ctx.payeeBreakdown());
-  assert.equal(list[0].name, 'Zomato');
+  assert.equal(list[0].name, 'Renuka');
+  assert.equal(list[0].visits, 3);
   assert.equal(list.find(x => x.name === 'Renuka').total, 120);
+  assert.ok(!list.some(x => x.name === 'Zomato'));
   assert.ok(!list.some(x => /other/i.test(x.name)));
-  assert.match(ctx.topCategoryAnswer(), /^You spend the most at Zomato/);
+  assert.match(ctx.topCategoryAnswer(), /^You spend the most at Renuka/);
+});
+
+test('local AI output is cleaned and checked against the verified facts', () => {
+  const { cleanLlm, llmSafe } = load([]);
+  assert.equal(cleanLlm('You spend the most at Renuka.<|im_end|>\n<|im_start|>user'), 'You spend the most at Renuka.');
+  const facts = 'You spend the most at Renuka: ₹1,200 across 3 payments.';
+  assert.equal(llmSafe('Renuka is your top shop at ₹1,200.', facts, 'where do I spend most'), true);
+  assert.equal(llmSafe('Renuka is your top shop at ₹9,999.', facts, 'where do I spend most'), false);
+  assert.equal(llmSafe('', facts, 'q'), false);
+});
+
+const row = (date, name, amount) => ({ date, description: `UPI/DR/412345678901/${name}/YESB/9876543210@ybl`, amount, category: 'Other' });
+
+test('a shop visited once in two months is not counted, a monthly one is', () => {
+  const data = [
+    row('2026-08-01', 'RENT HOUSE', -9000), row('2026-09-01', 'RENT HOUSE', -9000), row('2026-10-01', 'RENT HOUSE', -9000),
+    row('2026-08-10', 'FEES COLLEGE', -50000),
+    row('2026-08-02', 'TEA POINT', -20), row('2026-08-20', 'TEA POINT', -20), row('2026-09-15', 'TEA POINT', -20), row('2026-10-02', 'TEA POINT', -20),
+  ];
+  const ctx = load(data);
+  const st = plain(ctx.payeeStats(data));
+  assert.deepEqual(st.regular.map(e => e.name).sort(), ['Rent House', 'Tea Point'].sort().map(n => n.toUpperCase() === n ? n : st.regular.find(e => e.name.toLowerCase() === n.toLowerCase()).name));
+  assert.ok(!st.regular.some(e => /fees/i.test(e.name)));
+  assert.match(ctx.topMerchantAnswer('Where do I spend the most?'), /^You spend the most at Rent House: ₹27,000 over 3 visits/);
+});
+
+test('several payments on one day count as one visit', () => {
+  const data = [row('2026-10-05', 'CHAI', -10), row('2026-10-05', 'CHAI', -10), row('2026-10-06', 'CHAI', -10), row('2026-10-07', 'ONCE', -500)];
+  const st = plain(load(data).payeeStats(data));
+  const chai = st.all.find(e => /chai/i.test(e.name));
+  assert.equal(chai.count, 3);
+  assert.equal(chai.visits, 2);
+  assert.ok(st.regular.some(e => /chai/i.test(e.name)));
+  assert.ok(!st.regular.some(e => /once/i.test(e.name)));
+});
+
+test('when nobody has repeat visits, every payee is counted and the answer says so', () => {
+  const data = [row('2026-10-05', 'AAA', -500), row('2026-10-06', 'BBB', -100)];
+  const answer = load(data).topMerchantAnswer('Where do I spend the most?');
+  assert.match(answer, /^You spend the most at Aaa: ₹500 over 1 visit/);
+  assert.match(answer, /No shop has repeat visits yet/);
 });
 
 test('period and category questions are left to the model', () => {
