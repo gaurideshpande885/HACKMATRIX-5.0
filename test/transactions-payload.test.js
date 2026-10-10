@@ -22,6 +22,7 @@ function load(txs) {
     pick('function tidyName('),
     pick('function transactionPayload('),
     pick('function topMerchantAnswer('),
+    pick('function payeeCategoryPayload('),
   ].join('\n'), context);
   return context;
 }
@@ -98,6 +99,22 @@ test('"what am I spending the most in" answers with the payee name', () => {
   assert.match(answer, /^You spend the most at Zomato: ₹300/);
   const shop = load(vadapav.filter(row => row.category !== 'Dining'));
   assert.match(shop.topMerchantAnswer('what am i spending the most in'), /^You spend the most at Renuka: ₹120 across 3 payments/);
+});
+
+test('"where do I spend the least" answers with the smallest payee, not a category', () => {
+  const { topMerchantAnswer } = load(vadapav);
+  const answer = topMerchantAnswer('Where do I spend the least?');
+  assert.match(answer, /^You spend the least at /);
+  assert.doesNotMatch(answer, /Other/);
+});
+
+test('categories are built from payee names, never "Other"', () => {
+  const { categories } = plain(load(vadapav).payeeCategoryPayload());
+  assert.equal(categories[0].name, 'Zomato');
+  assert.ok(categories.some(c => c.name === 'Renuka'));
+  assert.ok(!categories.some(c => /other/i.test(c.name)));
+  assert.equal(categories.reduce((a, c) => a + c.sharePercent, 0) >= 99, true);
+  assert.deepEqual(plain(load([]).payeeCategoryPayload()), {});
 });
 
 test('period and category questions are left to the model', () => {
