@@ -14,7 +14,7 @@ const pick = start => {
 };
 
 function load(txs) {
-  const context = { txs, INR: new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }) };
+  const context = { txs, esc: v => String(v), INR: new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }) };
   vm.createContext(context);
   vm.runInContext([
     pick('function merchantKey('),
@@ -23,6 +23,8 @@ function load(txs) {
     pick('function transactionPayload('),
     pick('function topMerchantAnswer('),
     pick('function payeeCategoryPayload('),
+    pick('function payeeBreakdown('),
+    pick('function topCategoryAnswer('),
   ].join('\n'), context);
   return context;
 }
@@ -115,6 +117,15 @@ test('categories are built from payee names, never "Other"', () => {
   assert.ok(!categories.some(c => /other/i.test(c.name)));
   assert.equal(categories.reduce((a, c) => a + c.sharePercent, 0) >= 99, true);
   assert.deepEqual(plain(load([]).payeeCategoryPayload()), {});
+});
+
+test('Home and Insights breakdown ranks payees, not fixed categories', () => {
+  const ctx = load(vadapav);
+  const { list } = plain(ctx.payeeBreakdown());
+  assert.equal(list[0].name, 'Zomato');
+  assert.equal(list.find(x => x.name === 'Renuka').total, 120);
+  assert.ok(!list.some(x => /other/i.test(x.name)));
+  assert.match(ctx.topCategoryAnswer(), /^You spend the most at Zomato/);
 });
 
 test('period and category questions are left to the model', () => {
