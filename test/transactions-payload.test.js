@@ -14,7 +14,7 @@ const pick = start => {
 };
 
 function load(txs) {
-  const context = { txs, esc: v => String(v), INR: new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }) };
+  const context = { txs, CATEGORIES: ['Income','Transfers','Housing','Groceries','Transport','Utilities','Debt','Education','Health','Dining','Shopping','Subscriptions','Other'], esc: v => String(v), INR: new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }) };
   vm.createContext(context);
   vm.runInContext([
     pick('function merchantKey('),
@@ -25,7 +25,10 @@ function load(txs) {
     pick('function topMerchantAnswer('),
     pick('function payeeCategoryPayload('),
     pick('function payeeBreakdown('),
+    pick('function payeeSplit('),
     pick('function cleanLlm('),
+    pick('function merchantSpendAnswer('),
+    pick('function isSmallTalk('),
     pick('function llmSafe('),
     pick('function topCategoryAnswer('),
   ].join('\n'), context);
@@ -171,6 +174,45 @@ test('when nobody has repeat visits, every payee is counted and the answer says 
   const answer = load(data).topMerchantAnswer('Where do I spend the most?');
   assert.match(answer, /^You spend the most at Aaa: ₹500 over 1 visit/);
   assert.match(answer, /No shop has repeat visits yet/);
+});
+
+test('payments to a person are found, even with "until now" and different name order', () => {
+  const data = [
+    { date: '2026-08-04', description: 'UPI-ANUSHKA SHINDE-anushka@okaxis-HDFC0001234-427777777777-UPI', amount: -500, category: 'Other' },
+    { date: '2026-08-09', description: 'UPI/DR/412345678902/Anushka Shinde/YESB/9876543210@ybl', amount: -250, category: 'Other' },
+    { date: '2026-08-10', description: 'UPI/DR/412345678903/SHINDE ANUSHKA/YESB/9876543210@ybl', amount: -50, category: 'Other' },
+    { date: '2026-08-06', description: 'UPI/DR/412345679000/ZOMATO/YESB/z@icici', amount: -300, category: 'Dining' },
+    { date: '2026-08-07', description: 'UPI/CR/412345679777/Rahul Patil/YESB/r@ybl', amount: 900, category: 'Income' },
+  ];
+  const ctx = load(data);
+  assert.match(ctx.merchantSpendAnswer('How much have I sent to Anushka Shinde until now?'), /^You paid ₹800 to Anushka Shinde: 3 payments/);
+  assert.match(ctx.merchantSpendAnswer('How much did I receive from Rahul Patil'), /^You received ₹900 from Rahul Patil/);
+  assert.match(ctx.merchantSpendAnswer('How much did I send to Meera Joshi so far?'), /^I could not find any payments to Meera Joshi/);
+  assert.equal(ctx.merchantSpendAnswer('How much did I spend on food'), null);
+  assert.equal(ctx.merchantSpendAnswer('How much did I spend at Zomato this month'), null);
+});
+
+test('refusals from the model are never shown, and small talk skips the model', () => {
+  const { llmSafe, isSmallTalk } = load([]);
+  assert.equal(llmSafe("I'm sorry, but I can't assist with that.", 'facts', 'q'), false);
+  assert.equal(llmSafe('I could not find that in your data.', 'facts', 'q'), true);
+  assert.equal(isSmallTalk('Hi Fin'), true);
+  assert.equal(isSmallTalk('How are you?'), true);
+  assert.equal(isSmallTalk('Hello, how much did I spend at Zomato?'), false);
+});
+
+test('the daily spending split uses everyday payee names, not rent-sized payments or "Other"', () => {
+  const data = [
+    row('2026-08-01', 'LANDLORD RAO', -9000), row('2026-09-01', 'LANDLORD RAO', -9000), row('2026-10-01', 'LANDLORD RAO', -9000),
+    row('2026-08-03', 'RENUKA', -60), row('2026-08-20', 'RENUKA', -40), row('2026-09-10', 'RENUKA', -50), row('2026-10-02', 'RENUKA', -50),
+    row('2026-08-05', 'TEA POINT', -20), row('2026-09-05', 'TEA POINT', -20), row('2026-10-05', 'TEA POINT', -20),
+  ];
+  const split = load(data).payeeSplit({ daily: 500 });
+  assert.match(split, /Renuka ₹\d+/);
+  assert.match(split, /Tea Point ₹\d+/);
+  assert.ok(!/Landlord/i.test(split));
+  assert.ok(!/Other\b/.test(split));
+  assert.equal(load([]).payeeSplit({ daily: 500 }), '');
 });
 
 test('period and category questions are left to the model', () => {
