@@ -54,6 +54,11 @@ android {
     buildFeatures {
         buildConfig true
     }
+
+    // The AI model is stored uncompressed so Android can read it quickly.
+    androidResources {
+        noCompress 'task'
+    }
 }
 
 dependencies {

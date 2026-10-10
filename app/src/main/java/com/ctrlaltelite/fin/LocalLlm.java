@@ -2,6 +2,7 @@ package com.ctrlaltelite.fin;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.res.AssetFileDescriptor;
 import android.database.Cursor;
 import android.net.Uri;
 import android.provider.OpenableColumns;
@@ -39,7 +40,49 @@ public class LocalLlm {
     public LocalLlm(Activity activity, WebView webView) {
         this.activity = activity;
         this.webView = webView;
-        if (modelFile().isFile() && modelFile().length() > MIN_MODEL_BYTES) state = "idle";
+        if (modelFile().isFile() && modelFile().length() > MIN_MODEL_BYTES) {
+            state = "idle";
+        } else if (hasBundledModel()) {
+            state = "copying";
+            executor.execute(this::installBundled);
+        }
+    }
+
+    private boolean hasBundledModel() {
+        try {
+            String[] names = activity.getAssets().list("");
+            if (names != null) {
+                for (String name : names) {
+                    if ("model.task".equals(name)) return true;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
+    }
+
+    /** First start only: copies the model that is packed inside the APK into private storage. */
+    private void installBundled() {
+        File dir = new File(activity.getFilesDir(), "llm");
+        File tmp = new File(dir, "model.tmp");
+        try {
+            if (!dir.isDirectory() && !dir.mkdirs()) {
+                fail("Could not create the model folder");
+                return;
+            }
+            long total = -1;
+            try (AssetFileDescriptor afd = activity.getAssets().openFd("model.task")) {
+                total = afd.getLength();
+            } catch (Exception ignored) {
+            }
+            try (InputStream in = activity.getAssets().open("model.task")) {
+                copyStream(in, tmp, total);
+            }
+            finishCopy(tmp);
+        } catch (Throwable t) {
+            tmp.delete();
+            fail("Could not unpack the AI model: " + safeMessage(t));
+        }
     }
 
     private File modelFile() {
@@ -106,51 +149,60 @@ public class LocalLlm {
             }
             long total = size(uri);
             closeEngine();
-            long done = 0;
-            int lastPercent = -1;
-            try (InputStream in = activity.getContentResolver().openInputStream(uri);
-                 OutputStream out = new FileOutputStream(tmp)) {
+            try (InputStream in = activity.getContentResolver().openInputStream(uri)) {
                 if (in == null) {
                     fail("Could not read the chosen file");
                     return;
                 }
-                byte[] buffer = new byte[1024 * 1024];
-                int n;
-                while ((n = in.read(buffer)) > 0) {
-                    out.write(buffer, 0, n);
-                    done += n;
-                    if (total > 0) {
-                        int percent = (int) (done * 100 / total);
-                        if (percent != lastPercent) {
-                            lastPercent = percent;
-                            progress = percent;
-                            emit();
-                        }
-                    }
-                }
+                copyStream(in, tmp, total);
             }
-            if (tmp.length() < MIN_MODEL_BYTES) {
-                tmp.delete();
-                fail("That file is too small to be the AI model");
-                return;
-            }
-            File target = modelFile();
-            if (target.exists() && !target.delete()) {
-                fail("Could not replace the old model");
-                return;
-            }
-            if (!tmp.renameTo(target)) {
-                fail("Could not save the model");
-                return;
-            }
-            state = "idle";
-            progress = 100;
-            emit();
-            loadNow();
+            finishCopy(tmp);
         } catch (Throwable t) {
             tmp.delete();
             fail("Copy failed: " + safeMessage(t));
         }
+    }
+
+    private void copyStream(InputStream in, File tmp, long total) throws Exception {
+        long done = 0;
+        int lastPercent = -1;
+        try (OutputStream out = new FileOutputStream(tmp)) {
+            byte[] buffer = new byte[1024 * 1024];
+            int n;
+            while ((n = in.read(buffer)) > 0) {
+                out.write(buffer, 0, n);
+                done += n;
+                if (total > 0) {
+                    int percent = (int) (done * 100 / total);
+                    if (percent != lastPercent) {
+                        lastPercent = percent;
+                        progress = percent;
+                        emit();
+                    }
+                }
+            }
+        }
+    }
+
+    private void finishCopy(File tmp) {
+        if (tmp.length() < MIN_MODEL_BYTES) {
+            tmp.delete();
+            fail("That file is too small to be the AI model");
+            return;
+        }
+        File target = modelFile();
+        if (target.exists() && !target.delete()) {
+            fail("Could not replace the old model");
+            return;
+        }
+        if (!tmp.renameTo(target)) {
+            fail("Could not save the model");
+            return;
+        }
+        state = "idle";
+        progress = 100;
+        emit();
+        loadNow();
     }
 
     @JavascriptInterface
