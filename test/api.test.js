@@ -20,7 +20,7 @@ test('rejects request bodies over the service limit', async () => {
   const request = new Request('https://fin.example/api/v1/copilot', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ padding: 'x'.repeat(33 * 1024) }),
+    body: JSON.stringify({ padding: 'x'.repeat(257 * 1024) }),
   });
   const response = await POST(request);
   const body = await response.json();
