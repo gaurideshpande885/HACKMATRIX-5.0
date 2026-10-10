@@ -29,6 +29,14 @@ android {
     }
 
     signingConfigs {
+        // One fixed debug key, so every build can be installed over the previous one
+        // and the app keeps its data (including the AI model).
+        debug {
+            storeFile rootProject.file('fin-debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
         if (hasReleaseSigning) {
             release {
                 storeFile file(releaseStoreFile)
