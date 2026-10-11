@@ -15,6 +15,7 @@ const pick = start => {
 
 function load(txs) {
   const context = { txs, CATEGORIES: ['Income','Transfers','Housing','Groceries','Transport','Utilities','Debt','Education','Health','Dining','Shopping','Subscriptions','Other'], esc: v => String(v), INR: new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }) };
+  context.FinLocale = { ascii: v => String(v), locale: 'en-IN' };
   vm.createContext(context);
   vm.runInContext([
     pick('function merchantKey('),
